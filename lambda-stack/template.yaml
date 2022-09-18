@@ -1,0 +1,256 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: lambda stack
+
+Parameters:
+  Environment:
+    Type: String
+  Application:
+    Type: String
+  UsersTableArn:
+    Type: String
+  UsersTableName:
+    Type: String
+  OtpTableArn:
+    Type: String
+  OtpTableName:
+    Type: String
+  SecretId:
+    Type: String
+  OtpLength:
+    Type: Number
+  OtpExpiresInSeconds:
+    Type: Number
+  TwilioCredentialsSecretId:
+    Type: String
+  FromPhoneNumber:
+    Type: String
+
+Resources:
+  SecretsManagerPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub "${Environment}-${Application}-secrets-access-policy"
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - "secretsmanager:GetSecretValue"
+            Resource:
+              - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${Environment}/${Application}/*"
+      Roles:
+        - !Ref AuthorizerRole
+        - !Ref VerifyOtpRole
+
+  UsersTableAccessPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub "${Environment}-${Application}-users-table-access-policy"
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - "dynamodb:BatchGet*"
+              - "dynamodb:DescribeStream"
+              - "dynamodb:DescribeTable"
+              - "dynamodb:Get*"
+              - "dynamodb:Query"
+              - "dynamodb:Scan"
+              - "dynamodb:BatchWrite*"
+              - "dynamodb:CreateTable"
+              - "dynamodb:Delete*"
+              - "dynamodb:Update*"
+              - "dynamodb:PutItem"
+            Resource:
+              - !Ref UsersTableArn
+      Roles:
+        - !Ref LoginRole
+        - !Ref RegisterRole
+  
+  OtpTableAccessPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub "${Environment}-${Application}-otp-table-access-policy"
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - "dynamodb:BatchGet*"
+              - "dynamodb:DescribeStream"
+              - "dynamodb:DescribeTable"
+              - "dynamodb:Get*"
+              - "dynamodb:Query"
+              - "dynamodb:Scan"
+              - "dynamodb:BatchWrite*"
+              - "dynamodb:CreateTable"
+              - "dynamodb:Delete*"
+              - "dynamodb:Update*"
+              - "dynamodb:PutItem"
+            Resource:
+              - !Ref OtpTableArn
+      Roles:
+        - !Ref LoginRole
+        - !Ref VerifyOtpRole
+
+  AuthorizerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Environment}-${Application}-authorizer-role"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  Authorizer:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${Environment}-${Application}-authorizer"
+      CodeUri: functions/otp
+      Handler: org.springframework.cloud.function.adapter.aws.FunctionInvoker
+      Runtime: java11
+      Role: !GetAtt AuthorizerRole.Arn
+      Timeout: 30
+      MemorySize: 1024
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          MAIN_CLASS: "com.cemonan.otp.OtpApplication"
+          SPRING_CLOUD_FUNCTION_DEFINITION: "authorizer"
+          SECRET_ID: !Ref SecretId
+
+  LoginRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Environment}-${Application}-login-role"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+  
+  Login:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${Environment}-${Application}-login"
+      CodeUri: functions/otp
+      Handler: org.springframework.cloud.function.adapter.aws.FunctionInvoker
+      Runtime: java11
+      Role: !GetAtt LoginRole.Arn
+      Timeout: 30
+      MemorySize: 1024
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          MAIN_CLASS: "com.cemonan.otp.OtpApplication"
+          SPRING_CLOUD_FUNCTION_DEFINITION: "login"
+          OTP_TABLE_NAME: !Ref OtpTableName
+          USERS_TABLE_NAME: !Ref UsersTableName
+          OTP_LENGTH: !Ref OtpLength
+          OTP_EXPIRES_IN_SECONDS: !Ref OtpExpiresInSeconds
+          TWILIO_SECRET_KEY: !Ref TwilioCredentialsSecretId
+          FROM_PHONE_NUMBER: !Ref FromPhoneNumber
+
+  RegisterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Environment}-${Application}-register-role"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  Register:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${Environment}-${Application}-register"
+      CodeUri: functions/otp
+      Handler: org.springframework.cloud.function.adapter.aws.FunctionInvoker
+      Runtime: java11
+      Role: !GetAtt RegisterRole.Arn
+      Timeout: 30
+      MemorySize: 1024
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          MAIN_CLASS: "com.cemonan.otp.OtpApplication"
+          SPRING_CLOUD_FUNCTION_DEFINITION: "register"
+          USERS_TABLE_NAME: !Ref UsersTableName
+
+  VerifyOtpRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Environment}-${Application}-verifyotp-role"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  VerifyOtp:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${Environment}-${Application}-verifyotp"
+      CodeUri: functions/otp
+      Handler: org.springframework.cloud.function.adapter.aws.FunctionInvoker
+      Runtime: java11
+      Role: !GetAtt VerifyOtpRole.Arn
+      Timeout: 30
+      MemorySize: 1024
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          MAIN_CLASS: "com.cemonan.otp.OtpApplication"
+          SPRING_CLOUD_FUNCTION_DEFINITION: "verifyOtp"
+          OTP_TABLE_NAME: !Ref OtpTableName
+          SECRET_ID: !Ref SecretId
+
+Outputs:
+  AuthorizerFunctionArn:
+    Value: !GetAtt Authorizer.Arn
+  AuthorizerFunctionName:
+    Value: !Ref Authorizer
+  LoginFunctionArn:
+    Value: !GetAtt Login.Arn
+  LoginFunctionName:
+    Value: !Ref Login
+  RegisterFunctionArn:
+    Value: !GetAtt Register.Arn
+  RegisterFunctionName:
+    Value: !Ref Register
+  VerifyOtpFunctionArn:
+    Value: !GetAtt VerifyOtp.Arn
+  VerifyOtpFunctionName:
+    Value: !Ref VerifyOtp

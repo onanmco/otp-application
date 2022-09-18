@@ -1,0 +1,165 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: api stack
+
+Parameters:
+  Environment:
+    Type: String
+  Application:
+    Type: String
+  AuthorizerFunctionArn:
+    Type: String
+  AuthorizerFunctionName:
+    Type: String
+  LoginFunctionArn:
+    Type: String
+  LoginFunctionName:
+    Type: String
+  RegisterFunctionArn:
+    Type: String
+  RegisterFunctionName:
+    Type: String
+  VerifyOtpFunctionArn:
+    Type: String
+  VerifyOtpFunctionName:
+    Type: String
+
+Resources:
+  RestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties: 
+      Name: !Sub "${Environment}-${Application}-api"
+
+  Authorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties: 
+      AuthorizerResultTtlInSeconds: 0
+      AuthorizerUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerFunctionArn}/invocations"
+      Name: !Sub "${Environment}-${Application}-authorizer"
+      RestApiId: !Ref RestApi
+      Type: REQUEST
+
+  LoginResource:
+    Type: AWS::ApiGateway::Resource
+    Properties: 
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: login
+      RestApiId: !Ref RestApi
+
+  LoginPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties: 
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration: 
+        IntegrationHttpMethod: POST
+        PassthroughBehavior: WHEN_NO_MATCH
+        TimeoutInMillis: 29000
+        Type: AWS_PROXY
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LoginFunctionArn}/invocations"
+      ResourceId: !Ref LoginResource
+      RestApiId: !Ref RestApi
+  
+  RegisterResource:
+    Type: AWS::ApiGateway::Resource
+    Properties: 
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: register
+      RestApiId: !Ref RestApi
+
+  RegisterPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties: 
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration: 
+        IntegrationHttpMethod: POST
+        PassthroughBehavior: WHEN_NO_MATCH
+        TimeoutInMillis: 29000
+        Type: AWS_PROXY
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RegisterFunctionArn}/invocations"
+      ResourceId: !Ref RegisterResource
+      RestApiId: !Ref RestApi
+  
+  OtpResource:
+    Type: AWS::ApiGateway::Resource
+    Properties: 
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: otp
+      RestApiId: !Ref RestApi
+  
+  OtpIdProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties: 
+      ParentId: !Ref OtpResource
+      PathPart: "{otpId}"
+      RestApiId: !Ref RestApi
+  
+  VerifyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties: 
+      ParentId: !Ref OtpIdProxyResource
+      PathPart: verify
+      RestApiId: !Ref RestApi
+
+  VerifyOtpPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties: 
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration: 
+        IntegrationHttpMethod: POST
+        PassthroughBehavior: WHEN_NO_MATCH
+        TimeoutInMillis: 29000
+        Type: AWS_PROXY
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${VerifyOtpFunctionArn}/invocations"
+      ResourceId: !Ref VerifyResource
+      RestApiId: !Ref RestApi
+
+  AuthorizerLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AuthorizerFunctionName
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*"
+
+  LoginLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LoginFunctionName
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*"
+
+  RegisterLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref RegisterFunctionName
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*"
+
+  VerifyOtpLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref VerifyOtpFunctionName
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*"
+
+  RestApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - LoginPostMethod
+      - RegisterPostMethod
+      - VerifyOtpPostMethod
+    Properties: 
+      RestApiId: !Ref RestApi
+
+  RestApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties: 
+      DeploymentId: !Ref RestApiDeployment
+      RestApiId: !Ref RestApi
+      StageName: !Sub "${Environment}-${Application}-latest"

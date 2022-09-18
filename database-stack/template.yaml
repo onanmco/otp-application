@@ -1,0 +1,48 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: database stack
+
+Parameters:
+  Environment:
+    Type: String
+  Application:
+    Type: String
+
+Resources:
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: "id"
+          AttributeType: S
+      KeySchema:
+        - AttributeName: "id"
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      TableName: !Sub "${Environment}-${Application}-users"
+
+  OtpTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: "id"
+          AttributeType: S
+      KeySchema:
+        - AttributeName: "id"
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      TableName: !Sub "${Environment}-${Application}-otp"
+
+Outputs:
+  UsersTableArn:
+    Value: !GetAtt UsersTable.Arn
+  UsersTableName:
+    Value: !Sub "${Environment}-${Application}-users"
+  OtpTableArn:
+    Value: !GetAtt OtpTable.Arn
+  OtpTableName:
+    Value: !Sub "${Environment}-${Application}-otp"

@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: main stack
+
+Parameters:
+  Environment:
+    Type: String
+    Default: "development"
+  Application:
+    Type: String
+    Default: "otp"
+  OtpLength:
+    Type: Number
+    Default: 4
+  OtpExpiresInSeconds:
+    Type: Number
+    Default: 120
+  TwilioAccountSid:
+    Type: String
+    Default: "Your Twilio account sid."
+  TwilioAuthToken:
+    Type: String
+    Default: "Your Twilio auth token."
+  FromPhoneNumber:
+    Type: String
+    Default: "Your organization's phone number on Twilio."
+
+Resources:
+  DatabaseStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./database-stack/template.yaml
+      Parameters:
+        Environment: !Ref Environment
+        Application: !Ref Application
+  SecretsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./secrets-stack/template.yaml
+      Parameters:
+        Environment: !Ref Environment
+        Application: !Ref Application
+        TwilioAccountSid: !Ref TwilioAccountSid
+        TwilioAuthToken: !Ref TwilioAuthToken
+  LambdaStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./lambda-stack/template.yaml
+      Parameters:
+        Environment: !Ref Environment
+        Application: !Ref Application
+        UsersTableArn: !GetAtt DatabaseStack.Outputs.UsersTableArn
+        UsersTableName: !GetAtt DatabaseStack.Outputs.UsersTableName
+        OtpTableArn: !GetAtt DatabaseStack.Outputs.OtpTableArn
+        OtpTableName: !GetAtt DatabaseStack.Outputs.OtpTableName
+        SecretId: !GetAtt SecretsStack.Outputs.SecretId
+        OtpLength: !Ref OtpLength
+        OtpExpiresInSeconds: !Ref OtpExpiresInSeconds
+        TwilioCredentialsSecretId: !GetAtt SecretsStack.Outputs.TwilioCredentialsSecretId
+        FromPhoneNumber: !Ref FromPhoneNumber
+  ApiStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./api-stack/template.yaml
+      Parameters:
+        Environment: !Ref Environment
+        Application: !Ref Application
+        AuthorizerFunctionArn: !GetAtt LambdaStack.Outputs.AuthorizerFunctionArn
+        AuthorizerFunctionName: !GetAtt LambdaStack.Outputs.AuthorizerFunctionName
+        LoginFunctionArn: !GetAtt LambdaStack.Outputs.LoginFunctionArn
+        LoginFunctionName: !GetAtt LambdaStack.Outputs.LoginFunctionName
+        RegisterFunctionArn: !GetAtt LambdaStack.Outputs.RegisterFunctionArn
+        RegisterFunctionName: !GetAtt LambdaStack.Outputs.RegisterFunctionName
+        VerifyOtpFunctionArn: !GetAtt LambdaStack.Outputs.VerifyOtpFunctionArn
+        VerifyOtpFunctionName: !GetAtt LambdaStack.Outputs.VerifyOtpFunctionName

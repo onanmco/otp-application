@@ -1,0 +1,36 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: secrets stack
+
+Parameters:
+  Environment:
+    Type: String
+  Application:
+    Type: String
+  TwilioAccountSid:
+    Type: String
+  TwilioAuthToken:
+    Type: String
+
+Resources:
+  OtpSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Sub "Contains a secret key which is going to be used while hashing password in ${Application} app."
+      Name: !Sub "${Environment}/${Application}/secret"
+      GenerateSecretString:
+        PasswordLength: 32
+        ExcludeCharacters: "/@\"'\\"
+  
+  TwilioCredentialsSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Sub "Contains Twilio credentials."
+      Name: !Sub "${Environment}/${Application}/twilio-credentials"
+      SecretString: !Sub "{\"account_sid\": \"${TwilioAccountSid}\", \"auth_token\", \"${TwilioAuthToken}\"}"
+
+Outputs:
+  SecretId:
+    Value: !Sub "${Environment}/${Application}/secret"
+  TwilioCredentialsSecretId:
+    Value: !Sub "${Environment}/${Application}/twilio-credentials"
