@@ -27,7 +27,7 @@ Resources:
     Properties:
       Description: !Sub "Contains Twilio credentials."
       Name: !Sub "${Environment}/${Application}/twilio-credentials"
-      SecretString: !Sub "{\"account_sid\": \"${TwilioAccountSid}\", \"auth_token\", \"${TwilioAuthToken}\"}"
+      SecretString: !Sub "{\"account_sid\": \"${TwilioAccountSid}\", \"auth_token\": \"${TwilioAuthToken}\"}"
 
 Outputs:
   SecretId:
